@@ -58,10 +58,20 @@ def authenticate(func):
 class ListSeries(Resource):
 
     def get(self):
-        res = es_dsl.Search(using=es).index(API_INDEX_SERIES).query('match_all').execute()
+        q = es_dsl.Search(using=es).index(API_INDEX_SERIES).query('match_all')
+        series_count = q.count()
+        res = q[0:series_count].execute()
         response = {}
         for hit in res.hits.hits:
-            response[hit['_id']] = hit['_source']
+            info = hit['_source']
+            try:
+                token = info.pop('token')
+                info['user'] = users[token]['name']
+            except:
+                pass
+            s = es_dsl.Search(using=es).index(API_INDEX_POINT).query('match', series_id=hit['_id'])
+            info['count'] = s.count()
+            response[hit['_id']] = info
         return response
 
 
@@ -70,7 +80,9 @@ class Series(Resource):
     method_decorators = { 'put' : [authenticate], 'delete' : [authenticate] }
 
     def get(self, series_id):
-        res = es_dsl.Search(using=es).index(API_INDEX_POINT).sort('timestamp').query('match', series_id=series_id).execute()
+        q = es_dsl.Search(using=es).index(API_INDEX_POINT).sort('timestamp').query('match', series_id=series_id)
+        count = q.count()
+        res = q[0:count].execute()
         response = [hit.to_dict() for hit in res]
         return response
 
@@ -86,6 +98,8 @@ class Series(Resource):
             abort(404, message="For now only 'new' resource is available for PUT request")
 
         args = series_parser.parse_args()
+
+        args.pop
 
         # add data in elasticsearch
         args['timestamp'] = datetime.datetime.now()
@@ -126,9 +140,16 @@ class Point(Resource):
         res = es.index(index=API_INDEX_POINT, doc_type=API_TYPE_POINT, body=args)
         return res['_id'], 201
 
+class PointCount(Resource):
+
+    def get(self):
+        s = es_dsl.Search(using=es).index(API_INDEX_POINT).query('match_all')
+        return s.count(), 201
+
 api.add_resource(ListSeries, '/series')
 api.add_resource(Series, '/series/<series_id>')
 api.add_resource(Point, '/point/<point_id>')
+api.add_resource(PointCount, '/points/count')
 
 if __name__ == '__main__':
     app.run(debug=True)
