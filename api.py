@@ -4,17 +4,13 @@ import datetime
 import json
 import ast
 from functools import wraps
-import elasticsearch as elasticsearch
-import elasticsearch_dsl as es_dsl
+import dataset
 
-es = elasticsearch.Elasticsearch()
+DB_FILE = 'sqlite:////var/www/api/api_db.sqlite'
+db = dataset.connect(DB_FILE)
 
-# ES indes to store data point
-API_INDEX_POINT = 'timeseries-api-points'
-API_TYPE_POINT = 'point'
-# ES index to store meta-data
-API_INDEX_SERIES = 'timeseries-api-series'
-API_TYPE_SERIES = 'series'
+api_table_series = db['timeseries-api-series']
+api_table_points = db['timeseries-api-points']
 
 API_USERS_LIST = '/etc/timeseries-api/users.json'
 
@@ -28,9 +24,9 @@ series_parser.add_argument('device_desc', required=True, type=str, help='Some ki
 series_parser.add_argument('desc', type=str, help='A description of the series')
 
 point_parser = reqparse.RequestParser()
-point_parser.add_argument('series_id', type=str, required=True,
+point_parser.add_argument('series_id', type=int, required=True,
                        help='The session identification number produced by the device')
-point_parser.add_argument('fields', action='append', help='A field (key/value) of the data point')
+point_parser.add_argument('fields', action='str', help='A field (key/value) of the data point')
 point_parser.add_argument('token', type=str, required=True, help='The authentication token')
 
 # get the users list from a file
@@ -49,7 +45,7 @@ def authenticate(func):
         elif req_args['token'] not in users:
             abort(403, message="Token {} doesn't exist".format(req_args['token']))
 
-	# access granted!
+        # access granted!
         return func(*args, **kwargs)
 
     return func_wrapper
@@ -58,21 +54,20 @@ def authenticate(func):
 class ListSeries(Resource):
 
     def get(self):
-        q = es_dsl.Search(using=es).index(API_INDEX_SERIES).query('match_all')
-        series_count = q.count()
-        res = q[0:series_count].execute()
+        series = api_table_series.all()
         response = {}
-        for hit in res.hits.hits:
-            info = hit['_source']
+        for hit in series:
             try:
-                token = info.pop('token')
-                info['user'] = users[token]['name']
+                token = hit.pop('token')
+                hit['user'] = users[token]['name']
             except:
                 pass
-            s = es_dsl.Search(using=es).index(API_INDEX_POINT).query('match', series_id=hit['_id'])
-            info['count'] = s.count()
-            response[hit['_id']] = info
-        return response
+            # convert date to ISO 8601 string
+            hit['timestamp'] = hit['timestamp'].isoformat()
+            # get the number of points in the series
+            hit['count'] = api_table_points.count('series_id=' + str(hit['id']))
+            response[hit['id']] = hit
+        return response, 200
 
 
 class Series(Resource):
@@ -80,18 +75,39 @@ class Series(Resource):
     method_decorators = { 'put' : [authenticate], 'delete' : [authenticate] }
 
     def get(self, series_id):
-        q = es_dsl.Search(using=es).index(API_INDEX_POINT).sort('timestamp').query('match', series_id=series_id)
-        count = q.count()
-        res = q[0:count].execute()
-        response = [hit.to_dict() for hit in res]
-        return response
+
+        # check the series exists
+        series_info = api_table_series.find_one(id=int(series_id))
+        if series_info is None:
+            abort(404, message="Series {} doesn't exist".format(series_id))
+
+        # get all the points from the DB
+        points = api_table_points.find(
+                series_id=int(series_id),
+                order_by='timestamp',
+                )
+
+        # format list of results
+        results = []
+        for point in points:
+            # convert date to ISO8601 string
+            point['timestamp'] = point['timestamp'].isoformat()
+            # un-stringify the json
+            point['fields'] = json.loads(point['fields'])
+            results.append(point)
+
+        return results, 200
 
     def delete(self, series_id):
+        db.begin()
         try:
-            res = es.get(index=API_INDEX_SERIES, doc_type=API_TYPE_SERIES, id=series_id)
+            api_table_points.delete(series_id=int(series_id))
+            api_table_series.delete(id=int(series_id))
+            db.commit()
             return '', 204
-        except elasticsearch.exceptions.NotFoundError:
-            abort(404, message="Point {} doesn't exist".format(point_id))
+        except:
+            db.rollback()
+            abort(500, message="Something happend while querying the database.")
 
     def put(self, series_id):
         if series_id != 'new':
@@ -99,12 +115,17 @@ class Series(Resource):
 
         args = series_parser.parse_args()
 
-        args.pop
-
         # add data in elasticsearch
         args['timestamp'] = datetime.datetime.now()
-        res = es.index(index=API_INDEX_SERIES, doc_type=API_TYPE_SERIES, body=args)
-        return res['_id'], 201
+
+        db.begin()
+        try:
+            series_id = api_table_series.insert(args)
+            db.commit()
+            return series_id, 201
+        except:
+            db.rollback()
+            abort(500, message="Something happend while inserting in the database.")
 
 
 class Point(Resource):
@@ -112,39 +133,64 @@ class Point(Resource):
     method_decorators = { 'put' : [authenticate], 'delete' : [authenticate] }
 
     def get(self, point_id):
-        try:
-            res = es.get(index=API_INDEX_POINT, doc_type=API_TYPE_POINT, id=point_id)
-            return res['_source']
-        except elasticsearch.exceptions.NotFoundError:
+        res = api_table_points.find_one(id=int(point_id))
+        if res is not None:
+            res['fields'] = json.loads(res['fields'])
+            res['timestamp'] = res['timestamp'].isoformat()
+            return res, 200
+        else:
             abort(404, message="Point {} doesn't exist".format(point_id))
 
     def delete(self, point_id):
+        db.begin()
         try:
-            res = es.get(index=API_INDEX_POINT, doc_type=API_TYPE_POINT, id=point_id)
+            api_table_points.delete(id=int(point_id))
+            db.commit()
             return '', 204
-        except elasticsearch.exceptions.NotFoundError:
-            abort(404, message="Point {} doesn't exist".format(point_id))
+        except:
+            db.rollback()
+            abort(500, message="Something happend while querying the database.")
 
     def put(self, point_id):
         if point_id != 'new':
             abort(404, message="For now only 'new' resource is available for PUT request")
 
-        args = request.json
+        args = point_parser.parse_args()
+
+        # check if series exists
+        series_info = api_table_series.find_one(id=int(args['series_id']))
+        if series_info is None:
+            abort(404, message="Series {} not found".format(args['series_id']))
+
+        # check the token is the same for the series
+        if series_info['token'] != args['token']:
+            abort(403, message="Permission denied")
 
         # remove token from the document
-        token = args['token']
-        args.pop('token')
+        token = args.pop('token')
 
-        # add data in elasticsearch
+        # stringify the json
+        args['fields'] = json.dumps(args['fields'])
+
+        # add timestamp
         args['timestamp'] = datetime.datetime.now()
-        res = es.index(index=API_INDEX_POINT, doc_type=API_TYPE_POINT, body=args)
-        return res['_id'], 201
+
+        print(args)
+
+        db.begin()
+        try:
+            point_id = api_table_points.insert(args)
+            db.commit()
+            return point_id, 201
+        except:
+            db.rollback()
+            abort(500, message="Something happend while inserting in the database.")
 
 class PointCount(Resource):
 
     def get(self):
-        s = es_dsl.Search(using=es).index(API_INDEX_POINT).query('match_all')
-        return s.count(), 201
+        count = api_table_points.count()
+        return count, 200
 
 api.add_resource(ListSeries, '/series')
 api.add_resource(Series, '/series/<series_id>')
