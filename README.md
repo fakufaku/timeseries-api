@@ -97,3 +97,12 @@ automatically redirected to 443 to avoid any problems.
         Include /etc/letsencrypt/options-ssl-apache.conf
     </VirtualHost>
     </IfModule>
+
+API root folder permission
+--------------------------
+
+The apache user needs to be able to read/write the database file for correct operation.
+Once the file has been created, for example by runnint `tests/test_api.py`
+
+    chown -R www-data:www-data /var/www/api
+    chmod -R u+w /var/www/api

@@ -7,7 +7,12 @@ from functools import wraps
 import dataset
 
 DB_FILE = 'sqlite:////var/www/api/api_db.sqlite'
-db = dataset.connect(DB_FILE)
+
+# Note the argument passed to SQLite to allow
+# concurrent access to the database file from multiple apache threads
+# Is this safe ? I wouldn't use this at work...
+db = dataset.connect(DB_FILE, 
+        engine_kwargs={'connect_args' : {'check_same_thread':False}})
 
 api_table_series = db['timeseries-api-series']
 api_table_points = db['timeseries-api-points']
