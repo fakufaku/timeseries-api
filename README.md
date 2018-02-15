@@ -19,13 +19,7 @@ Endpoints
 * `/point/<point_id>` (GET) Display a point
 * `/point/<point_id>` (DELETE) Delete a point
 
-Examples
---------
-
-TBA
-
-Authentification
-----------------
+### Authentification
 
 All PUT and DELETE endpoints need to be authentified. GET endpoints are not
 authentified.
@@ -42,6 +36,62 @@ with the following structure.
     }
 
 The file is intended to be maintained manually.
+
+Example
+-------
+
+    import requests, time
+
+    # The URL of the server running the api
+    url = 'https://www.mydatadump.org/api'
+
+    # The authentication token
+    # This can be stored in a file for example
+    auth_token = 'my-secret-authentication-token'
+
+    new_series = {
+            'desc': 'Temperature in Tokyo',
+            'device_desc': 'ESP32 with DS18B20 temperature sensor',
+            'device_id': '12:AB:CD:XY:ZU:57',
+            'token' : auth_token,
+            }
+
+    new_points = [
+            { 'fields': {'temp_C': 13}, },
+            { 'fields': {'temp_C': 13.5}, },
+            { 'fields': {'temp_C': 12.5}, },
+            ]
+
+    # Create a new timeseries. The creation timestamp is done server side
+    ret = requests.put(url + '/series/new', json=new_series)
+
+    if ret.ok:
+        series_id = ret.json()
+    else:
+        raise ValueError('{} {}'.format(ret.status_code, ret.text))
+
+    # Now add some points to the series
+    for point in new_points:
+        # add authentication token
+        point['token'] = auth_token
+
+        # add the series_id
+        point['series_id'] = series_id
+
+        ret = requests.put(url + '/point/new', json=point)
+
+        if not ret.ok:
+            raise ValueError('{} {}'.format(ret.status_code, ret.text))
+
+        # The points are also timestamped server side
+        time.sleep(5)
+
+    # Now we can get the data
+    # No authentication required for that
+    ret = requests.get(url + '/series/' + str(series_id))
+    data = ret.json()
+    print(data)
+
 
 Server Configuration
 --------------------

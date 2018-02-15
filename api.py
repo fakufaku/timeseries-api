@@ -28,11 +28,8 @@ series_parser.add_argument('device_id', required=True, type=str, help='Some kind
 series_parser.add_argument('device_desc', required=True, type=str, help='Some kind of device ID')
 series_parser.add_argument('desc', type=str, help='A description of the series')
 
-point_parser = reqparse.RequestParser()
-point_parser.add_argument('series_id', type=int, required=True,
-                       help='The session identification number produced by the device')
-point_parser.add_argument('fields', action='str', help='A field (key/value) of the data point')
-point_parser.add_argument('token', type=str, required=True, help='The authentication token')
+# use this to make sure the requests satisfy the format
+point_columns = ['series_id', 'timestamp', 'fields']
 
 # get the users list from a file
 with open(API_USERS_LIST, 'r') as f:
@@ -99,7 +96,7 @@ class Series(Resource):
             point['timestamp'] = point['timestamp'].isoformat()
             # un-stringify the json
             point['fields'] = json.loads(point['fields'])
-            results.append(point)
+            results.append(point.copy())
 
         return results, 200
 
@@ -120,7 +117,7 @@ class Series(Resource):
 
         args = series_parser.parse_args()
 
-        # add data in elasticsearch
+        # timestamp the data
         args['timestamp'] = datetime.datetime.now()
 
         db.begin()
@@ -140,9 +137,13 @@ class Point(Resource):
     def get(self, point_id):
         res = api_table_points.find_one(id=int(point_id))
         if res is not None:
-            res['fields'] = json.loads(res['fields'])
-            res['timestamp'] = res['timestamp'].isoformat()
-            return res, 200
+            point = dict(res)
+            f = json.loads(res['fields'])
+            point['fields'] = f
+            point['timestamp'] = point['timestamp'].isoformat()
+            print('unloaded', f, type(f))
+            print(point)
+            return point, 200
         else:
             abort(404, message="Point {} doesn't exist".format(point_id))
 
@@ -160,7 +161,8 @@ class Point(Resource):
         if point_id != 'new':
             abort(404, message="For now only 'new' resource is available for PUT request")
 
-        args = point_parser.parse_args()
+        # get the JSON data as a dictionary directly
+        args = request.json
 
         # check if series exists
         series_info = api_table_series.find_one(id=int(args['series_id']))
@@ -174,14 +176,23 @@ class Point(Resource):
         # remove token from the document
         token = args.pop('token')
 
-        # stringify the json
-        args['fields'] = json.dumps(args['fields'])
-
         # add timestamp
         args['timestamp'] = datetime.datetime.now()
 
-        print(args)
+        # stringify json fields
+        args['fields'] = json.dumps(args['fields'])
 
+        # remove any extra fields
+        for key in args:
+            if key not in point_columns:
+                args.pop(key)
+
+        # check that the necessary columns are there
+        for col in point_columns:
+            if col not in args:
+                abort(400, message='Some fields are missing')
+
+        # Save to the db
         db.begin()
         try:
             point_id = api_table_points.insert(args)

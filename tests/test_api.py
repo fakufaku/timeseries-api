@@ -20,9 +20,9 @@ new_series = {
         }
 
 new_points = [
-        { 'fields': {"temp_C": 1}, },
-        { 'fields': {"temp_C": 2}, },
-        { 'fields': {"temp_C": 3}, },
+        { 'fields': {'temp_C': 1}, },
+        { 'fields': {'temp_C': 2}, },
+        { 'fields': {'temp_C': 3}, },
         ]
 
 def test_series(url=None):
@@ -81,7 +81,7 @@ def test_series(url=None):
     r = requests.get(url + '/point/' + str(new_points_id[0]))
     assert r.ok
     assert r.status_code == 200
-    print('* Successfully get back a single point', new_points_id[0])
+    print('* Successfully get back a single point', new_points_id[0], r.json())
 
     # try to delete this point
     r = requests.delete(url + '/point/' + str(new_points_id[0]), json=auth)
