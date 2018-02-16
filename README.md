@@ -93,6 +93,19 @@ Example
     print(data)
 
 
+Clients
+-------
+
+A number of API clients are available in the `clients` folder.
+
+* `plotjs`: This is a javascript plotting tool to allow online visualization in
+  a browser.
+* `python_viewer`: This is a python tool to list and display the timeseries in
+  the API.
+* `micropython_esp32`: This is a temperature logger using ESP32 and
+  micropython.
+
+
 Server Configuration
 --------------------
 
