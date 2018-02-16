@@ -1,0 +1,7 @@
+{
+  "url" : "the.api_url_goes_here.com",
+  "token" : "your-token-goes-here",
+  "device_desc" : "ESP32 Temperature Logger",
+  "desc" : "Temperature with a DS18B20 probe.",
+  "update_interval_ms" : 60000
+}
