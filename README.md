@@ -156,3 +156,12 @@ Once the file has been created, for example by runnint `tests/test_api.py`
 
     chown -R www-data:www-data /var/www/api
     chmod -R u+w /var/www/api
+
+License
+-------
+
+MIT License
+
+Copyright (c) 2017-2018 Robin Scheibler (fakufaku@gmail.com)
+
+See `LICENSE` file for the notice.
