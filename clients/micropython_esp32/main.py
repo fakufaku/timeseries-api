@@ -1,5 +1,6 @@
 import socket
-import json import ubinascii
+import json 
+import ubinascii
 import urequests
 import network
 import time
@@ -7,8 +8,6 @@ import machine
 import onewire, ds18x20
 
 DEEPSLEEP_TIME = 60000
-WIFI_SSID = 'YOUR_WIFI_SSID'
-WIFI_PASSWORD = 'YOUR_WIFI_PASSWORD'
 
 # Use the on board led for feedback
 led = machine.Pin(13)
@@ -21,18 +20,16 @@ def blink(n, t_on=200, t_off=200):
         led.value(0)
         time.sleep_ms(t_off)
 
-def do_connect():
+def do_connect(ssid="", password=""):
     import network
     sta_if = network.WLAN(network.STA_IF)
     if not sta_if.isconnected():
         print('connecting to network...')
         sta_if.active(True)
-        sta_if.connect(WIFI_SSID, WIFI_PASSWORD)
+        sta_if.connect(ssid, password)
         while not sta_if.isconnected():
             pass
     print('network config:', sta_if.ifconfig())
-
-do_connect()
 
 # signal start
 blink(2, t_on=200, t_off=200)
@@ -40,6 +37,11 @@ blink(2, t_on=200, t_off=200)
 # Read the config file
 with open('/config.json', 'r') as f:
     config = json.load(f)
+
+
+#######################
+# Series registration #
+#######################
 
 # Try to create a new session if it doesn't exist
 if 'series_id' not in config:
@@ -53,7 +55,8 @@ if 'series_id' not in config:
             'device_desc' : config['device_desc'],
             'desc' : config['desc'],
             }
-    #doc_series_json = json.dumps(doc_series)
+
+    do_connect(**config['wifi'])
 
     # Create a new sessions
     try:
@@ -75,6 +78,11 @@ if 'series_id' not in config:
 # if still not here go back to sleep
 if 'series_id' not in config:
     machine.deepsleep(DEEPSLEEP_TIME)
+
+
+###############
+# Measurement #
+###############
 
 # Initialize the temperature sensor
 dat = machine.Pin(27)
@@ -98,7 +106,13 @@ doc_point = {
 ds.convert_temp()
 time.sleep_ms(750)
 doc_point['fields']['temp_C'] = ds.read_temp(roms[0])
-#doc_point_json = json.dumps(doc_point)
+
+
+#############################
+# Send the point to the API #
+#############################
+
+do_connect(**config['wifi'])
 
 # Connect to API and create new data point
 request_failed = True  # assume the worst
@@ -114,7 +128,7 @@ except Exception as err:
     print('Error: {}'.format(err))
     pass
 
+# signal end and go back to sleep
 blink(1, t_on=200, t_off=0)
-
 machine.deepsleep(DEEPSLEEP_TIME)
 

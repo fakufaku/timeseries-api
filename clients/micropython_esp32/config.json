@@ -1,4 +1,8 @@
 {
+  "wifi": {
+    "ssid" : "your_ssid",
+    "password" : "your_password"
+  },
   "url" : "the.api_url_goes_here.com",
   "token" : "your-token-goes-here",
   "device_desc" : "ESP32 Temperature Logger",
