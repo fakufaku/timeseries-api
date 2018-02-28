@@ -7,8 +7,6 @@ import time
 import machine
 import onewire, ds18x20
 
-DEEPSLEEP_TIME = 60000
-
 # Use the on board led for feedback
 led = machine.Pin(13)
 led.init(led.OUT)
@@ -77,7 +75,7 @@ if 'series_id' not in config:
 
 # if still not here go back to sleep
 if 'series_id' not in config:
-    machine.deepsleep(DEEPSLEEP_TIME)
+    machine.deepsleep(config['update_interval_ms'])
 
 
 ###############
@@ -90,7 +88,7 @@ ds = ds18x20.DS18X20(onewire.OneWire(dat))
 roms = ds.scan()
 if len(roms) == 0:
     print('Error: Temperature sensor not found!')
-    machine.deepsleep(DEEPSLEEP_TIME)
+    machine.deepsleep(config['update_interval_ms'])
 
 
 # prepare the data structures
@@ -130,5 +128,5 @@ except Exception as err:
 
 # signal end and go back to sleep
 blink(1, t_on=200, t_off=0)
-machine.deepsleep(DEEPSLEEP_TIME)
+machine.deepsleep(config['update_interval_ms'])
 
