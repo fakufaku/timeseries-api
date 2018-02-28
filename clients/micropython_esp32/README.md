@@ -20,12 +20,9 @@ Quickstart
         esptool.py --chip esp32 --port /dev/ttyUSB1 write_flash -z 0x1000 firmware.bin
 
 3. Edit `config.json` and edit the `url` and `token` with the values for your
-   own API configuration.
+   own API configuration. Edit the wifi SSID and password.
 
-4. Edit `main.py`, set your WIFI credentials in the `WIFI_SSID` and
-   `WIFI_PASSWORD` variables.
-
-5. Upload `config.json` and `main.py` to the ESP32
+4. Upload `config.json` and `main.py` to the ESP32
 
         ampy put config.json
         ampy put main.py
