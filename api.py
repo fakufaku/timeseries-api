@@ -83,10 +83,16 @@ class Series(Resource):
         if series_info is None:
             abort(404, message="Series {} doesn't exist".format(series_id))
 
+        # define a date range, the last two days
+        now = datetime.datetime.now()
+        two_days_ago = now - datetime.timedelta(days=2)
+
+
         # get all the points from the DB
         points = api_table_points.find(
+                api_table_points.table.columns.timestamp >= two_days_ago,
                 series_id=int(series_id),
-                order_by='timestamp',
+                order_by='timestamp'
                 )
 
         # format list of results
