@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, current_app, jsonify
 from flask_restful import Resource, Api, reqparse, abort
 import datetime
 import json
@@ -35,8 +35,8 @@ point_columns = ['series_id', 'timestamp', 'fields']
 with open(API_USERS_LIST, 'r') as f:
     users = json.load(f)
 
-# This is a decorator to request authentications on some actions
 def authenticate(func):
+    ''' This is a decorator to request authentications on some actions '''
     @wraps(func)
     def func_wrapper(*args, **kwargs):
 
@@ -51,6 +51,21 @@ def authenticate(func):
         return func(*args, **kwargs)
 
     return func_wrapper
+
+def jsonp(f):
+    ''' Wraps output to JSONP '''
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        result = jsonify(f(*args, **kwargs))
+        callback = request.args.get('callback', False)
+        if callback:
+            content = str(callback) + '(' + str(result.data) + ')'
+            return current_app.response_class(content,
+                                              mimetype='application/json')
+        else:
+            return result
+    return decorated_function
+
 
     
 class ListSeries(Resource):
