@@ -59,9 +59,9 @@ def jsonp(f):
         result = jsonify(f(*args, **kwargs))
         callback = request.args.get('callback', False)
         if callback:
-            content = str(callback) + '(' + str(result.data) + ')'
+            content = str(callback) + '(' + result.data.decode('utf-8').strip() + ')'
             return current_app.response_class(content,
-                                              mimetype='application/json')
+                                              mimetype='application/javascript')
         else:
             return result
     return decorated_function
@@ -69,6 +69,8 @@ def jsonp(f):
 
     
 class ListSeries(Resource):
+
+    method_decorators = { 'get' : [jsonp] }
 
     def get(self):
         series = api_table_series.all()
@@ -89,7 +91,7 @@ class ListSeries(Resource):
 
 class Series(Resource):
 
-    method_decorators = { 'put' : [authenticate], 'delete' : [authenticate] }
+    method_decorators = { 'get' : [jsonp], 'put' : [authenticate], 'delete' : [authenticate] }
 
     def get(self, series_id):
 
@@ -153,7 +155,7 @@ class Series(Resource):
 
 class Point(Resource):
 
-    method_decorators = { 'put' : [authenticate], 'delete' : [authenticate] }
+    method_decorators = { 'get' : [jsonp], 'put' : [authenticate], 'delete' : [authenticate] }
 
     def get(self, point_id):
         res = api_table_points.find_one(id=int(point_id))
@@ -224,6 +226,8 @@ class Point(Resource):
             abort(500, message="Something happend while inserting in the database.")
 
 class PointCount(Resource):
+
+    method_decorators = { 'get' : [jsonp] }
 
     def get(self):
         count = api_table_points.count()
