@@ -8,6 +8,8 @@ Based on [flask](http://flask.pocoo.org/),
 [flask-restful](https://flask-restful.readthedocs.io/en/latest/), and
 [dataset](https://dataset.readthedocs.io/en/latest/index.html).
 
+See the `clients` folder for some applications.
+
 Endpoints
 ---------
 
@@ -91,6 +93,29 @@ Example
     ret = requests.get(url + '/series/' + str(series_id))
     data = ret.json()
     print(data)
+
+The API can be automatically tested.
+
+1. Start the api 
+
+        python api.py
+
+2. Run the tests
+
+        python tests/test_api.py
+
+
+Clients
+-------
+
+A number of API clients are available in the `clients` folder.
+
+* `plotjs`: This is a javascript plotting tool to allow online visualization in
+  a browser.
+* `python_viewer`: This is a python tool to list and display the timeseries in
+  the API.
+* `micropython_esp32`: This is a temperature logger using ESP32 and
+  micropython.
 
 
 Server Configuration
