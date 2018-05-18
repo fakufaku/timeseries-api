@@ -56,14 +56,18 @@ def jsonp(f):
     ''' Wraps output to JSONP '''
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        result = jsonify(f(*args, **kwargs))
+
+        response, code = f(*args, **kwargs)
+        result = jsonify(response)
+
         callback = request.args.get('callback', False)
         if callback:
             content = str(callback) + '(' + result.data.decode('utf-8').strip() + ')'
-            return current_app.response_class(content,
+            return current_app.response_class(content, status=code,
                                               mimetype='application/javascript')
         else:
             return result
+
     return decorated_function
 
 
@@ -119,7 +123,7 @@ class Series(Resource):
             point['timestamp'] = point['timestamp'].isoformat()
             # un-stringify the json
             point['fields'] = json.loads(point['fields'])
-            results.append(point.copy())
+            results.append(dict(point.copy()))  # convert from ordered dict to dict
 
         return results, 200
 
