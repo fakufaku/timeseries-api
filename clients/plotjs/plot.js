@@ -1,4 +1,16 @@
-$.getJSON( "https://data.robinscheibler.org/api/series/21", function( data ) {
+// First we extract any get request parameters
+// that might be present from the URL
+var url_string = window.location.href;
+s = url_string.split('?');
+
+if (s.length > 1) {
+  get_params = '?' + s[1];
+} else {
+  get_params = '';
+}
+
+// Request the JSON data and plot
+$.getJSON( "https://data.robinscheibler.org/api/series/21" + get_params, function( data ) {
 
   var lines = {};
 
