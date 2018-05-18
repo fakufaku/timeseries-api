@@ -1,6 +1,7 @@
 from flask import Flask, request, current_app, jsonify
 from flask_restful import Resource, Api, reqparse, abort
 import datetime
+from dateutil.parser import parse as date_parse
 import json
 import ast
 from functools import wraps
@@ -105,13 +106,14 @@ class Series(Resource):
             abort(404, message="Series {} doesn't exist".format(series_id))
 
         # define a date range, the last two days
-        now = datetime.datetime.now()
-        two_days_ago = now - datetime.timedelta(days=2)
-
+        date_to = request.args.get('to', default=datetime.datetime.now(), type=date_parse)
+        two_days_ago = date_to - datetime.timedelta(days=2)
+        date_from = request.args.get('from', default=two_days_ago, type=date_parse)
 
         # get all the points from the DB
         points = api_table_points.find(
-                api_table_points.table.columns.timestamp >= two_days_ago,
+                api_table_points.table.columns.timestamp >= date_from,
+                api_table_points.table.columns.timestamp <= date_to,
                 series_id=int(series_id),
                 order_by='timestamp'
                 )
