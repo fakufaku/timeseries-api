@@ -8,7 +8,7 @@ import machine
 import onewire, ds18x20
 
 # Use the on board led for feedback
-led = machine.Pin(13)
+led = machine.Pin(5)
 led.init(led.OUT)
 
 def blink(n, t_on=200, t_off=200):
@@ -58,7 +58,9 @@ if 'series_id' not in config:
 
     # Create a new sessions
     try:
-        r = urequests.put(config['url'] + '/series/new', json=doc_series)
+        headers = {'content-type': 'application/json'}
+        data = json.dumps(doc_series)
+        r = urequests.put(config['url'] + '/series/new', data=data, headers=headers)
         if r.status_code == 201:
 
             # get the series id and save to file
@@ -83,12 +85,16 @@ if 'series_id' not in config:
 ###############
 
 # Initialize the temperature sensor
-dat = machine.Pin(27)
+dat = machine.Pin(config['pins']['temp'])
 ds = ds18x20.DS18X20(onewire.OneWire(dat))
 roms = ds.scan()
 if len(roms) == 0:
     print('Error: Temperature sensor not found!')
     machine.deepsleep(config['update_interval_ms'])
+
+# Initialize the ADC for the battery voltage sensing
+adc = machine.ADC(machine.Pin(config['pins']['battery']))          # create ADC object on ADC pin
+adc.atten(machine.ADC.ATTN_11DB)    # set 11dB input attentuation (voltage range roughly 0.0v - 3.6v)
 
 
 # prepare the data structures
@@ -96,7 +102,8 @@ doc_point = {
         'token' : config['token'],
         'series_id' : config['series_id'],
         'fields' : {
-            'temp_C' : 0
+            'temp_C' : 0.,
+            'batt_V' : 0.,
             }
         }
 
@@ -104,6 +111,8 @@ doc_point = {
 ds.convert_temp()
 time.sleep_ms(750)
 doc_point['fields']['temp_C'] = ds.read_temp(roms[0])
+# conversion formula is a little bit empirical
+doc_point['fields']['batt_V'] = adc.read() / 4096 * 3.3 * 2.02
 
 
 #############################
@@ -115,11 +124,13 @@ do_connect(**config['wifi'])
 # Connect to API and create new data point
 request_failed = True  # assume the worst
 try:
-    r = urequests.put(config['url'] + '/point/new', json=doc_point)
+    headers = {'content-type': 'application/json'}
+    data = json.dumps(doc_point)
+    r = urequests.put(config['url'] + '/point/new', data=data, headers=headers)
     if r.status_code == 201:
         request_failed = False  # things turned all right
         point_id = r.json()
-        print('New point created with ID={} value={}'.format(point_id, doc_point['fields']['temp_C']))
+        print('New point created with ID={} values={}'.format(point_id, doc_point['fields']))
     else:
         print('Registration of new point failed with code', r.status_code, r.text)
 except Exception as err:

@@ -3,6 +3,10 @@
     "ssid" : "your_ssid",
     "password" : "your_password"
   },
+  "pins": {
+    "battery": 33,
+    "temp": 22,
+  },
   "url" : "the.api_url_goes_here.com",
   "token" : "your-token-goes-here",
   "device_desc" : "ESP32 Temperature Logger",
